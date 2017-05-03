@@ -1,5 +1,5 @@
 # lumped-hydrological
-Lumped hydrological models for sreamflow forecasting
+Lumped hydrological models for sreamflow simulation and forecasting
 
 This module contains the implementation of 3 lumped hydrological models: HBV-96, Sugawara tank and Linear Tank model.
 
