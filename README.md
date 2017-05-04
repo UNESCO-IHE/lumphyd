@@ -1,5 +1,5 @@
-# lumped-hydrological
-Lumped hydrological models for sreamflow simulation and forecasting
+# lumped hydrological (lumphyd) models
+Lumped hydrological models for sreamflow simulation and forecasting. This is a beta version of a larger package on hydrological modelling, which is yet to be developed.
 
 This module contains the implementation of 3 lumped hydrological models: HBV-96, Sugawara tank and Linear Tank model.
 
@@ -8,4 +8,5 @@ The libraries contain 2 fundamental functions, which are `simulate` and `calibra
 Please, if you happen to find any errors in the code, or just would like to further collaborate in the development of these codes, feel free to drop a line in a message.
 
 Regards,
+
 Juan Chacon-Hurtado
