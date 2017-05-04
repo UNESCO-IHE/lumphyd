@@ -1,0 +1,438 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sugawara &#8212; lumped-hydrological  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sugawara</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">========</span>
+<span class="sd">Sugawara</span>
+<span class="sd">========</span>
+<span class="sd">Lumped hydrological model.</span>
+
+<span class="sd">This is the Sugawara (TANK) hydrological model implementation by Juan Chacon at </span>
+<span class="sd">IHE-Delft, NL. This code implements a two tank the version with linear response</span>
+
+<span class="sd">@author: Juan Carlos Chacon-Hurtado (jc.chaconh@gmail.com)                                  </span>
+
+<span class="sd">Version</span>
+<span class="sd">-------</span>
+<span class="sd">03-05-2017 - V_0.0 - First implementation</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy.optimize</span> <span class="k">as</span> <span class="nn">opt</span>
+
+<span class="n">INITIAL_STATES</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span>
+<span class="n">INITIAL_Q</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">INITIAL_PARAM</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+<span class="n">X_LB</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">]</span>
+<span class="n">X_UB</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.6</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">_step</span><span class="p">(</span><span class="n">prec</span><span class="p">,</span> <span class="n">evap</span><span class="p">,</span> <span class="n">st</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">extra_param</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ======</span>
+<span class="sd">    Step</span>
+<span class="sd">    ======</span>
+<span class="sd">    </span>
+<span class="sd">    This function makes a single step fowrward using the Sugawara model.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prec : float</span>
+<span class="sd">        Average precipitation [mm/h]</span>
+<span class="sd">    evap : float</span>
+<span class="sd">        Potential Evapotranspiration [mm/h] </span>
+<span class="sd">    st : array_like [2]</span>
+<span class="sd">        Model states [mm]. Corresponds to the level in the top and bottom tank </span>
+<span class="sd">        respectively.</span>
+<span class="sd">    param : array_like [6]</span>
+<span class="sd">        Model parameters as:</span>
+<span class="sd">        k1: Upper tank upper discharge coefficient</span>
+<span class="sd">        k2: Upper tank lower discharge coefficient</span>
+<span class="sd">        k3: Percolation to lower tank coefficient</span>
+<span class="sd">        k4: Lower tank discharge coefficient</span>
+<span class="sd">        d1: Upper tank upper discharge position</span>
+<span class="sd">        d2: Upper tank lower discharge position</span>
+<span class="sd">    extra_param : array_like [2]</span>
+<span class="sd">        Problem parameter vector setup as:</span>
+<span class="sd">            DT: Number of hours in the time step</span>
+<span class="sd">            AREA: Catchment area [km²]</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    q_new : float</span>
+<span class="sd">        Discharge [m3/s]</span>
+<span class="sd">    st_new : array_like [2]</span>
+<span class="sd">        Posterior model states</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Old states</span>
+    <span class="n">S1Old</span> <span class="o">=</span> <span class="n">st</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">S2Old</span> <span class="o">=</span> <span class="n">st</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1">#Parameters</span>
+    <span class="n">k1</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">k2</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">k3</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">k4</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">d1</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+    <span class="n">d2</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+    <span class="n">rfcf</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span>
+    <span class="n">ecorr</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span>
+    
+    <span class="c1"># Extra Parameters</span>
+    <span class="n">DT</span> <span class="o">=</span> <span class="n">extra_param</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">Area</span> <span class="o">=</span> <span class="n">extra_param</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1">## Top tank</span>
+    <span class="n">H1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">S1Old</span> <span class="o">+</span> <span class="n">prec</span><span class="o">*</span><span class="n">rfcf</span> <span class="o">-</span> <span class="n">evap</span><span class="o">*</span><span class="n">ecorr</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">H1</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1">#direct runoff</span>
+        <span class="k">if</span> <span class="n">H1</span> <span class="o">&gt;</span> <span class="n">d1</span><span class="p">:</span>
+            <span class="n">q1</span> <span class="o">=</span> <span class="n">k1</span><span class="o">*</span><span class="p">(</span><span class="n">H1</span><span class="o">-</span><span class="n">d1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">q1</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1">#Fast response component</span>
+        <span class="k">if</span> <span class="n">H1</span> <span class="o">&gt;</span> <span class="n">d2</span><span class="p">:</span>
+            <span class="n">q2</span> <span class="o">=</span> <span class="n">k2</span><span class="o">*</span><span class="p">(</span><span class="n">H1</span><span class="o">-</span><span class="n">d2</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">q2</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1">#Percolation to bottom tank</span>
+        <span class="n">q3</span> <span class="o">=</span> <span class="n">k3</span> <span class="o">*</span> <span class="n">H1</span>
+        <span class="c1">#Check for availability of water in upper tank</span>
+        <span class="n">q123</span> <span class="o">=</span> <span class="n">q1</span><span class="o">+</span><span class="n">q2</span><span class="o">+</span><span class="n">q3</span>
+        <span class="k">if</span> <span class="n">q123</span> <span class="o">&gt;</span> <span class="n">H1</span><span class="p">:</span>
+            <span class="n">q1</span> <span class="o">=</span> <span class="p">(</span><span class="n">q1</span><span class="o">/</span><span class="n">q123</span><span class="p">)</span><span class="o">*</span><span class="n">H1</span>
+            <span class="n">q2</span> <span class="o">=</span> <span class="p">(</span><span class="n">q2</span><span class="o">/</span><span class="n">q123</span><span class="p">)</span><span class="o">*</span><span class="n">H1</span>
+            <span class="n">q3</span> <span class="o">=</span> <span class="p">(</span><span class="n">q3</span><span class="o">/</span><span class="n">q123</span><span class="p">)</span><span class="o">*</span><span class="n">H1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">q1</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">q2</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">q3</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">Q1</span> <span class="o">=</span> <span class="n">q1</span><span class="o">+</span><span class="n">q2</span>
+    <span class="c1">#State update top tank</span>
+    <span class="n">S1New</span> <span class="o">=</span> <span class="n">H1</span> <span class="o">-</span> <span class="p">(</span><span class="n">q1</span><span class="o">+</span><span class="n">q2</span><span class="o">+</span><span class="n">q3</span><span class="p">)</span>
+    
+    <span class="c1">## Bottom tank</span>
+    <span class="n">H2</span> <span class="o">=</span> <span class="n">S2Old</span><span class="o">+</span><span class="n">q3</span>
+    <span class="n">Q2</span> <span class="o">=</span> <span class="n">k4</span><span class="o">*</span> <span class="n">H2</span>
+
+    <span class="c1">#check if there is enough water</span>
+    <span class="k">if</span> <span class="n">Q2</span> <span class="o">&gt;</span> <span class="n">H2</span><span class="p">:</span>
+        <span class="n">Q2</span> <span class="o">=</span> <span class="n">H2</span>
+
+    <span class="c1">#Bottom tank update</span>
+    <span class="n">S2New</span> <span class="o">=</span> <span class="n">H2</span> <span class="o">-</span> <span class="n">Q2</span>
+
+    <span class="c1">## Total Flow</span>
+    <span class="c1"># DT = 86400 #number of seconds in a day</span>
+    <span class="c1"># Area = 2100# Area km²</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">Q1</span> <span class="o">+</span> <span class="n">Q2</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">q_new</span> <span class="o">=</span> <span class="p">(</span><span class="n">Q1</span><span class="o">+</span><span class="n">Q2</span><span class="p">)</span><span class="o">*</span><span class="n">Area</span><span class="o">/</span><span class="p">(</span><span class="mf">3.6</span><span class="o">*</span><span class="n">DT</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">q_new</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">st_new</span> <span class="o">=</span> <span class="p">[</span><span class="n">S1New</span><span class="p">,</span> <span class="n">S2New</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">S1New</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;s1 below zero&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">q_new</span><span class="p">,</span> <span class="n">st_new</span>
+
+<div class="viewcode-block" id="simulate"><a class="viewcode-back" href="../lumped-hydrological.html#sugawara.simulate">[docs]</a><span class="k">def</span> <span class="nf">simulate</span><span class="p">(</span><span class="n">prec</span><span class="p">,</span> <span class="n">evap</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">extra_param</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ======</span>
+<span class="sd">    Simulate</span>
+<span class="sd">    ======</span>
+<span class="sd">    </span>
+<span class="sd">    This function makes the simulation of a complete time seties using the </span>
+<span class="sd">    Sugawara model.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prec : array_like [n]</span>
+<span class="sd">        Average precipitation [mm/h]</span>
+<span class="sd">    evap : array_like [n]</span>
+<span class="sd">        Potential Evapotranspiration [mm/h] </span>
+<span class="sd">    param : array_like [6]</span>
+<span class="sd">        Model parameters as:</span>
+<span class="sd">        k1: Upper tank upper discharge coefficient</span>
+<span class="sd">        k2: Upper tank lower discharge coefficient</span>
+<span class="sd">        k3: Percolation to lower tank coefficient</span>
+<span class="sd">        k4: Lower tank discharge coefficient</span>
+<span class="sd">        d1: Upper tank upper discharge position</span>
+<span class="sd">        d2: Upper tank lower discharge position</span>
+<span class="sd">    extra_param : array_like [2]</span>
+<span class="sd">        Problem parameter vector setup as:</span>
+<span class="sd">        DT: Number of hours in the time step</span>
+<span class="sd">        AREA: Catchment area [km²]</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    q : array_like [n]</span>
+<span class="sd">        Discharge [m3/s]</span>
+<span class="sd">    st : array_like [n, 2]</span>
+<span class="sd">        Posterior model states</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">st</span> <span class="o">=</span> <span class="p">[</span><span class="n">INITIAL_STATES</span><span class="p">,]</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">xrange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">prec</span><span class="p">)):</span>
+        <span class="n">step_res</span> <span class="o">=</span> <span class="n">_step</span><span class="p">(</span><span class="n">prec</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">evap</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">st</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">param</span><span class="p">,</span> <span class="n">extra_param</span><span class="p">)</span>
+        <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step_res</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">st</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step_res</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">q</span><span class="p">,</span> <span class="n">st</span></div>
+
+<span class="k">def</span> <span class="nf">_nse</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">q_sim</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ===</span>
+<span class="sd">    NSE</span>
+<span class="sd">    ===</span>
+<span class="sd">    </span>
+<span class="sd">    Nash-Sutcliffe efficiency. Metric for the estimation of performance of the </span>
+<span class="sd">    hydrological model</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    q_rec : array_like [n]</span>
+<span class="sd">        Measured discharge [m3/s]</span>
+<span class="sd">    q_sim : array_like [n] </span>
+<span class="sd">        Simulated discharge [m3/s]</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f : float</span>
+<span class="sd">        NSE value</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">q_sim</span><span class="p">))</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">q_rec</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">any</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nansum</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">nansum</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+
+<span class="k">def</span> <span class="nf">_rmse</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">q_sim</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ====</span>
+<span class="sd">    RMSE</span>
+<span class="sd">    ====</span>
+<span class="sd">    </span>
+<span class="sd">    Root Mean Squared Error. Metric for the estimation of performance of the </span>
+<span class="sd">    hydrological model.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    q_rec : array_like [n]</span>
+<span class="sd">        Measured discharge [m3/s]</span>
+<span class="sd">    q_sim : array_like [n] </span>
+<span class="sd">        Simulated discharge [m3/s]</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f : float</span>
+<span class="sd">        RMSE value</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">erro</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span><span class="n">q_sim</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">erro</span><span class="o">.</span><span class="n">any</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">erro</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+<div class="viewcode-block" id="calibrate"><a class="viewcode-back" href="../lumped-hydrological.html#sugawara.calibrate">[docs]</a><span class="k">def</span> <span class="nf">calibrate</span><span class="p">(</span><span class="n">prec</span><span class="p">,</span> <span class="n">evap</span><span class="p">,</span> <span class="n">extra_param</span><span class="p">,</span> <span class="n">q_rec</span><span class="p">,</span> <span class="n">x_0</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_lb</span><span class="o">=</span><span class="n">X_LB</span><span class="p">,</span> <span class="n">x_ub</span><span class="o">=</span><span class="n">X_UB</span><span class="p">,</span> 
+              <span class="n">obj_fun</span><span class="o">=</span><span class="n">_rmse</span><span class="p">,</span> <span class="n">wu</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">minimise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ======</span>
+<span class="sd">    Calibrate</span>
+<span class="sd">    ======</span>
+<span class="sd">    </span>
+<span class="sd">    This function makes the calibration of the Sugawara hydrological model.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prec : array_like [n]</span>
+<span class="sd">        Average precipitation [mm/h]</span>
+<span class="sd">    evap : array_like [n]</span>
+<span class="sd">        Potential Evapotranspiration [mm/h] </span>
+<span class="sd">    extra_param : array_like [2]</span>
+<span class="sd">        Problem parameter vector setup as:</span>
+<span class="sd">        DT: Number of hours in the time step</span>
+<span class="sd">        AREA: Catchment area [km²]</span>
+<span class="sd">    q_rec : array_like [n]</span>
+<span class="sd">        Measurements of discharge [m3/s]</span>
+<span class="sd">    x_0 : array_like [18], optional</span>
+<span class="sd">        First guess of the parameter vector. If unspecified, a random value</span>
+<span class="sd">        will be sampled between the boundaries of the parameter set</span>
+<span class="sd">    x_lb : array_like [18], optional</span>
+<span class="sd">        Lower boundary of the parameter vector. </span>
+<span class="sd">    x_ub : array_like [18], optional</span>
+<span class="sd">        First guess of the parameter vector.  </span>
+<span class="sd">    obj_fun : function, optional</span>
+<span class="sd">        Function that takes 2 parameters, recorded and simulated discharge. If</span>
+<span class="sd">        unspecified, RMSE is used.</span>
+<span class="sd">    wu : int, optional</span>
+<span class="sd">        Warming up period. This accounts for the number of steps that the model</span>
+<span class="sd">        is run before calculating the performance function.</span>
+<span class="sd">    minimise : bool, optional</span>
+<span class="sd">        If True, the optimisation corresponds to the minimisation of the </span>
+<span class="sd">        objective function. If False, the optimial of the objective function is</span>
+<span class="sd">        maximised.</span>
+<span class="sd">    verbose : bool, optional</span>
+<span class="sd">        If True, displays the result of each model evaluation when performing</span>
+<span class="sd">        the calibration of the hydrological model.</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    param : array_like [6]</span>
+<span class="sd">        Optimal parameter set</span>
+<span class="sd">        k1: Upper tank upper discharge coefficient</span>
+<span class="sd">        k2: Upper tank lower discharge coefficient</span>
+<span class="sd">        k3: Percolation to lower tank coefficient</span>
+<span class="sd">        k4: Lower tank discharge coefficient</span>
+<span class="sd">        d1: Upper tank upper discharge position</span>
+<span class="sd">        d2: Upper tank lower discharge position</span>
+<span class="sd">    performance : float</span>
+<span class="sd">        Optimal value of the objective function</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">cal_fun</span><span class="p">(</span><span class="n">param_cal</span><span class="p">):</span>
+        <span class="n">q_sim</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">prec</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">evap</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">param_cal</span><span class="p">,</span> <span class="n">extra_param</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">minimise</span><span class="p">:</span>
+                <span class="n">perf_fun</span> <span class="o">=</span> <span class="n">obj_fun</span><span class="p">(</span><span class="n">q_rec</span><span class="p">[</span><span class="n">wu</span><span class="p">:],</span> <span class="n">q_sim</span><span class="p">[</span><span class="n">wu</span><span class="p">:])</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">print</span> <span class="n">perf_fun</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">perf_fun</span> <span class="o">=</span> <span class="o">-</span><span class="n">obj_fun</span><span class="p">(</span><span class="n">q_rec</span><span class="p">[</span><span class="n">wu</span><span class="p">:],</span> <span class="n">q_sim</span><span class="p">[</span><span class="n">wu</span><span class="p">:])</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">print</span> <span class="o">-</span><span class="n">perf_fun</span>
+        
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">perf_fun</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">print</span> <span class="n">perf_fun</span>
+
+        <span class="k">return</span> <span class="n">perf_fun</span>
+    
+    <span class="k">if</span> <span class="n">x_0</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Randomly generated</span>
+        <span class="n">x_0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">x_lb</span><span class="p">,</span> <span class="n">x_ub</span><span class="p">)</span>
+    
+    <span class="c1"># Boundaries</span>
+    <span class="n">x_b</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="n">x_lb</span><span class="p">,</span> <span class="n">x_ub</span><span class="p">)</span>
+    
+    <span class="n">cal_res</span> <span class="o">=</span> <span class="n">opt</span><span class="o">.</span><span class="n">minimize</span><span class="p">(</span><span class="n">cal_fun</span><span class="p">,</span> <span class="n">INITIAL_PARAM</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">x_b</span><span class="p">,</span>
+                           <span class="n">method</span><span class="o">=</span><span class="s1">&#39;L-BFGS-B&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cal_res</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">cal_res</span><span class="o">.</span><span class="n">fun</span></div>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Testing function    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+    <span class="c1">#    for i in xrange(1000):</span>
+    <span class="n">prec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="n">evap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="n">st</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">)]</span>
+    <span class="n">param</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.1819</span><span class="p">,</span> <span class="mf">0.0412</span><span class="p">,</span> <span class="mf">0.3348</span><span class="p">,</span> <span class="mf">0.0448</span><span class="p">,</span> <span class="mf">3.2259</span><span class="p">,</span> <span class="mf">0.3800</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">extra_param</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">145.0</span><span class="p">]</span>
+    <span class="n">q_sim</span><span class="p">,</span> <span class="n">st_sim</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">prec</span><span class="p">,</span> <span class="n">evap</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">extra_param</span><span class="p">)</span>
+    
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">q_sim</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Time step [hr]&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Discharge [m3/s]&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+    
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">st_sim</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;UT&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">st_sim</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;LT&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Time step [hr]&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;State [mm]&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

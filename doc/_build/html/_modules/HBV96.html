@@ -1,0 +1,689 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>HBV96 &#8212; lumped-hydrological  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for HBV96</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">======</span>
+<span class="sd">HBV-96</span>
+<span class="sd">======</span>
+
+<span class="sd">Lumped hydrological model.</span>
+
+<span class="sd">This is the HBV-96 implementation by Juan Chacon at IHE-Delft, NL. This code</span>
+<span class="sd">implements the HBV-96 version, as described in Lindstrom et al (1997)</span>
+<span class="sd">https://doi.org/10.1016/S0022-1694(97)00041-3</span>
+
+<span class="sd">@author: Juan Carlos Chacon-Hurtado (jc.chaconh@gmail.com)                                  </span>
+
+<span class="sd">Version</span>
+<span class="sd">-------</span>
+<span class="sd">03-05-2017 - V_0.0 - First implementation</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy.optimize</span> <span class="k">as</span> <span class="nn">opt</span>
+
+<span class="c1"># HBV base model parameters</span>
+<span class="n">P_LB</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.5</span><span class="p">,</span> <span class="c1">#ltt</span>
+        <span class="mf">0.001</span><span class="p">,</span> <span class="c1">#utt</span>
+        <span class="mf">0.001</span><span class="p">,</span> <span class="c1">#ttm</span>
+        <span class="mf">0.04</span><span class="p">,</span> <span class="c1">#cfmax [mm c^-1 h^-1]</span>
+        <span class="mf">50.0</span><span class="p">,</span> <span class="c1">#fc</span>
+        <span class="mf">0.6</span><span class="p">,</span> <span class="c1">#ecorr</span>
+        <span class="mf">0.001</span><span class="p">,</span> <span class="c1">#etf</span>
+        <span class="mf">0.2</span><span class="p">,</span> <span class="c1">#lp</span>
+        <span class="mf">0.00042</span><span class="p">,</span> <span class="c1">#k [h^-1] upper zone</span>
+        <span class="mf">0.0000042</span><span class="p">,</span> <span class="c1">#k1 lower zone</span>
+        <span class="mf">0.001</span><span class="p">,</span> <span class="c1">#alpha</span>
+        <span class="mf">1.0</span><span class="p">,</span> <span class="c1">#beta</span>
+        <span class="mf">0.001</span><span class="p">,</span> <span class="c1">#cwh</span>
+        <span class="mf">0.01</span><span class="p">,</span> <span class="c1">#cfr</span>
+        <span class="mf">0.0</span><span class="p">,</span> <span class="c1">#c_flux</span>
+        <span class="mf">0.001</span><span class="p">,</span> <span class="c1">#perc mm/h</span>
+        <span class="mf">0.6</span><span class="p">,</span> <span class="c1">#rfcf</span>
+        <span class="mf">0.4</span><span class="p">]</span> <span class="c1">#sfcf</span>
+
+<span class="n">P_UB</span> <span class="o">=</span> <span class="p">[</span><span class="mf">2.5</span><span class="p">,</span> <span class="c1">#ttm</span>
+        <span class="mf">3.0</span><span class="p">,</span> <span class="c1">#utt</span>
+        <span class="mf">2.0</span><span class="p">,</span> <span class="c1">#ttm</span>
+        <span class="mf">0.4</span><span class="p">,</span> <span class="c1">#cfmax [mm c^-1 h^-1]</span>
+        <span class="mf">500.0</span><span class="p">,</span> <span class="c1">#fc</span>
+        <span class="mf">1.4</span><span class="p">,</span> <span class="c1">#ecorr</span>
+        <span class="mf">5.0</span><span class="p">,</span> <span class="c1">#etf</span>
+        <span class="mf">0.5</span><span class="p">,</span> <span class="c1">#lp</span>
+        <span class="mf">0.0167</span><span class="p">,</span> <span class="c1">#k upper zone</span>
+        <span class="mf">0.00062</span><span class="p">,</span> <span class="c1">#k1 lower zone</span>
+        <span class="mf">1.0</span><span class="p">,</span> <span class="c1">#alpha</span>
+        <span class="mf">6.0</span><span class="p">,</span> <span class="c1">#beta</span>
+        <span class="mf">0.1</span><span class="p">,</span> <span class="c1">#cwh</span>
+        <span class="mf">1.0</span><span class="p">,</span> <span class="c1">#cfr</span>
+        <span class="mf">0.08</span><span class="p">,</span> <span class="c1">#c_flux - 2mm/day</span>
+        <span class="mf">0.125</span><span class="p">,</span> <span class="c1">#perc mm/hr</span>
+        <span class="mf">1.4</span><span class="p">,</span> <span class="c1">#rfcf</span>
+        <span class="mf">1.4</span><span class="p">]</span> <span class="c1">#sfcf</span>
+
+<span class="n">DEF_ST</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">30.0</span><span class="p">,</span> <span class="mf">30.0</span><span class="p">,</span> <span class="mf">30.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]</span>
+<span class="n">DEF_q0</span> <span class="o">=</span> <span class="mf">10.0</span>
+
+<span class="k">def</span> <span class="nf">_precipitation</span><span class="p">(</span><span class="n">temp</span><span class="p">,</span> <span class="n">ltt</span><span class="p">,</span> <span class="n">utt</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">rfcf</span><span class="p">,</span> <span class="n">sfcf</span><span class="p">,</span> <span class="n">tfac</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ==============</span>
+<span class="sd">    Precipitation</span>
+<span class="sd">    ==============</span>
+
+<span class="sd">    Precipitaiton routine of the HBV96 model.</span>
+
+<span class="sd">    If temperature is lower than ltt, all the precipitation is considered as</span>
+<span class="sd">    snow. If the temperature is higher than utt, all the precipitation is</span>
+<span class="sd">    considered as rainfall. In case that the temperature is between ltt and</span>
+<span class="sd">    utt, precipitation is a linear mix of rainfall and snowfall.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    temp : float</span>
+<span class="sd">        Measured temperature [C]</span>
+<span class="sd">    ltt : float</span>
+<span class="sd">        Lower temperature treshold [C]</span>
+<span class="sd">    utt : float</span>
+<span class="sd">        Upper temperature treshold [C]</span>
+<span class="sd">    prec : float </span>
+<span class="sd">        Precipitation [mm]</span>
+<span class="sd">    rfcf : float</span>
+<span class="sd">        Rainfall corrector factor</span>
+<span class="sd">    sfcf : float</span>
+<span class="sd">        Snowfall corrector factor</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    _rf : float</span>
+<span class="sd">        Rainfall [mm]</span>
+<span class="sd">    _sf : float</span>
+<span class="sd">        Snowfall [mm]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="n">temp</span> <span class="o">&lt;=</span> <span class="n">ltt</span><span class="p">:</span>
+        <span class="n">_rf</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">_sf</span> <span class="o">=</span> <span class="n">prec</span><span class="o">*</span><span class="n">sfcf</span>
+
+    <span class="k">elif</span> <span class="n">temp</span> <span class="o">&gt;=</span> <span class="n">utt</span><span class="p">:</span>
+        <span class="n">_rf</span> <span class="o">=</span> <span class="n">prec</span><span class="o">*</span><span class="n">rfcf</span>
+        <span class="n">_sf</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_rf</span> <span class="o">=</span> <span class="p">((</span><span class="n">temp</span><span class="o">-</span><span class="n">ltt</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">utt</span><span class="o">-</span><span class="n">ltt</span><span class="p">))</span> <span class="o">*</span> <span class="n">prec</span> <span class="o">*</span> <span class="n">rfcf</span>
+        <span class="n">_sf</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="o">-</span><span class="p">((</span><span class="n">temp</span><span class="o">-</span><span class="n">ltt</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">utt</span><span class="o">-</span><span class="n">ltt</span><span class="p">)))</span> <span class="o">*</span> <span class="n">prec</span> <span class="o">*</span> <span class="n">sfcf</span>
+
+    <span class="k">return</span> <span class="n">_rf</span><span class="p">,</span> <span class="n">_sf</span>
+
+
+<span class="k">def</span> <span class="nf">_snow</span><span class="p">(</span><span class="n">cfmax</span><span class="p">,</span> <span class="n">tfac</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">ttm</span><span class="p">,</span> <span class="n">cfr</span><span class="p">,</span> <span class="n">cwh</span><span class="p">,</span> <span class="n">_rf</span><span class="p">,</span> <span class="n">_sf</span><span class="p">,</span> <span class="n">wc_old</span><span class="p">,</span> <span class="n">sp_old</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ====</span>
+<span class="sd">    Snow</span>
+<span class="sd">    ====</span>
+<span class="sd">    </span>
+<span class="sd">    Snow routine of the HBV-96 model.</span>
+<span class="sd">    </span>
+<span class="sd">    The snow pack consists of two states: Water Content (wc) and Snow Pack </span>
+<span class="sd">    (sp). The first corresponds to the liquid part of the water in the snow,</span>
+<span class="sd">    while the latter corresponds to the solid part. If the temperature is </span>
+<span class="sd">    higher than the melting point, the snow pack will melt and the solid snow</span>
+<span class="sd">    will become liquid. In the opposite case, the liquid part of the snow will</span>
+<span class="sd">    refreeze, and turn into solid. The water that cannot be stored by the solid</span>
+<span class="sd">    part of the snow pack will drain into the soil as part of infiltration.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    cfmax : float </span>
+<span class="sd">        Day degree factor</span>
+<span class="sd">    tfac : float</span>
+<span class="sd">        Temperature correction factor</span>
+<span class="sd">    temp : float </span>
+<span class="sd">        Temperature [C]</span>
+<span class="sd">    ttm : float </span>
+<span class="sd">        Temperature treshold for Melting [C]</span>
+<span class="sd">    cfr : float </span>
+<span class="sd">        Refreezing factor</span>
+<span class="sd">    cwh : float </span>
+<span class="sd">        Capacity for water holding in snow pack</span>
+<span class="sd">    _rf : float </span>
+<span class="sd">        Rainfall [mm]</span>
+<span class="sd">    _sf : float </span>
+<span class="sd">        Snowfall [mm]</span>
+<span class="sd">    wc_old : float </span>
+<span class="sd">        Water content in previous state [mm]</span>
+<span class="sd">    sp_old : float </span>
+<span class="sd">        snow pack in previous state [mm]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    _in : float </span>
+<span class="sd">        Infiltration [mm]</span>
+<span class="sd">    _wc_new : float </span>
+<span class="sd">        Water content in posterior state [mm]</span>
+<span class="sd">    _sp_new : float </span>
+<span class="sd">        Snowpack in posterior state [mm]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="n">temp</span> <span class="o">&gt;</span> <span class="n">ttm</span><span class="p">:</span>
+
+        <span class="k">if</span> <span class="n">cfmax</span><span class="o">*</span><span class="p">(</span><span class="n">temp</span><span class="o">-</span><span class="n">ttm</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">sp_old</span><span class="o">+</span><span class="n">_sf</span><span class="p">:</span>
+            <span class="n">_melt</span> <span class="o">=</span> <span class="n">cfmax</span><span class="o">*</span><span class="p">(</span><span class="n">temp</span><span class="o">-</span><span class="n">ttm</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_melt</span> <span class="o">=</span> <span class="n">sp_old</span><span class="o">+</span><span class="n">_sf</span>
+
+        <span class="n">_sp_new</span> <span class="o">=</span> <span class="n">sp_old</span> <span class="o">+</span> <span class="n">_sf</span> <span class="o">-</span> <span class="n">_melt</span>
+        <span class="n">_wc_int</span> <span class="o">=</span> <span class="n">wc_old</span> <span class="o">+</span> <span class="n">_melt</span> <span class="o">+</span> <span class="n">_rf</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">cfr</span><span class="o">*</span><span class="n">cfmax</span><span class="o">*</span><span class="p">(</span><span class="n">ttm</span><span class="o">-</span><span class="n">temp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">wc_old</span><span class="o">+</span><span class="n">_rf</span><span class="p">:</span>
+            <span class="n">_refr</span> <span class="o">=</span> <span class="n">cfr</span><span class="o">*</span><span class="n">cfmax</span><span class="o">*</span><span class="p">(</span><span class="n">ttm</span> <span class="o">-</span> <span class="n">temp</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_refr</span> <span class="o">=</span> <span class="n">wc_old</span> <span class="o">+</span> <span class="n">_rf</span>
+
+        <span class="n">_sp_new</span> <span class="o">=</span> <span class="n">sp_old</span> <span class="o">+</span> <span class="n">_sf</span> <span class="o">+</span> <span class="n">_refr</span>
+        <span class="n">_wc_int</span> <span class="o">=</span> <span class="n">wc_old</span> <span class="o">-</span> <span class="n">_refr</span> <span class="o">+</span> <span class="n">_rf</span>
+
+    <span class="k">if</span> <span class="n">_wc_int</span> <span class="o">&gt;</span> <span class="n">cwh</span><span class="o">*</span><span class="n">_sp_new</span><span class="p">:</span>
+        <span class="n">_in</span> <span class="o">=</span> <span class="n">_wc_int</span><span class="o">-</span><span class="n">cwh</span><span class="o">*</span><span class="n">_sp_new</span>
+        <span class="n">_wc_new</span> <span class="o">=</span> <span class="n">cwh</span><span class="o">*</span><span class="n">_sp_new</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_in</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">_wc_new</span> <span class="o">=</span> <span class="n">_wc_int</span>
+
+    <span class="k">return</span> <span class="n">_in</span><span class="p">,</span> <span class="n">_wc_new</span><span class="p">,</span> <span class="n">_sp_new</span>
+
+
+<span class="k">def</span> <span class="nf">_soil</span><span class="p">(</span><span class="n">fc</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">etf</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">tm</span><span class="p">,</span> <span class="n">e_corr</span><span class="p">,</span> <span class="n">lp</span><span class="p">,</span> <span class="n">tfac</span><span class="p">,</span> <span class="n">c_flux</span><span class="p">,</span> <span class="n">inf</span><span class="p">,</span>
+          <span class="n">ep</span><span class="p">,</span> <span class="n">sm_old</span><span class="p">,</span> <span class="n">uz_old</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ====</span>
+<span class="sd">    Soil</span>
+<span class="sd">    ====</span>
+<span class="sd">    </span>
+<span class="sd">    Soil routine of the HBV-96 model.</span>
+<span class="sd">    </span>
+<span class="sd">    The model checks for the amount of water that can infiltrate the soil, </span>
+<span class="sd">    coming from the liquid precipitation and the snow pack melting. A part of </span>
+<span class="sd">    the water will be stored as soil moisture, while other will become runoff, </span>
+<span class="sd">    and routed to the upper zone tank.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fc : float </span>
+<span class="sd">        Filed capacity</span>
+<span class="sd">    beta : float </span>
+<span class="sd">        Shape coefficient for effective precipitation separation</span>
+<span class="sd">    etf : float </span>
+<span class="sd">        Total potential evapotranspiration</span>
+<span class="sd">    temp : float </span>
+<span class="sd">        Temperature</span>
+<span class="sd">    tm : float </span>
+<span class="sd">        Average long term temperature</span>
+<span class="sd">    e_corr : float </span>
+<span class="sd">        Evapotranspiration corrector factor</span>
+<span class="sd">    lp : float _soil </span>
+<span class="sd">        wilting point</span>
+<span class="sd">    tfac : float </span>
+<span class="sd">        Time conversion factor</span>
+<span class="sd">    c_flux : float </span>
+<span class="sd">        Capilar flux in the root zone</span>
+<span class="sd">    _in : float </span>
+<span class="sd">        actual infiltration</span>
+<span class="sd">    ep : float </span>
+<span class="sd">        actual evapotranspiration</span>
+<span class="sd">    sm_old : float </span>
+<span class="sd">        Previous soil moisture value</span>
+<span class="sd">    uz_old : float </span>
+<span class="sd">        Previous Upper zone value</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    sm_new : float </span>
+<span class="sd">        New value of soil moisture</span>
+<span class="sd">    uz_int_1 : float </span>
+<span class="sd">        New value of direct runoff into upper zone</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">qdr</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sm_old</span> <span class="o">+</span> <span class="n">inf</span> <span class="o">-</span> <span class="n">fc</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">_in</span> <span class="o">=</span> <span class="n">inf</span> <span class="o">-</span> <span class="n">qdr</span>
+    <span class="n">_r</span> <span class="o">=</span> <span class="p">((</span><span class="n">sm_old</span><span class="o">/</span><span class="n">fc</span><span class="p">)</span><span class="o">**</span> <span class="n">beta</span><span class="p">)</span> <span class="o">*</span> <span class="n">_in</span>
+    <span class="n">_ep_int</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">etf</span><span class="o">*</span><span class="p">(</span><span class="n">temp</span> <span class="o">-</span> <span class="n">tm</span><span class="p">))</span><span class="o">*</span><span class="n">e_corr</span><span class="o">*</span><span class="n">ep</span>
+    <span class="n">_ea</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">_ep_int</span><span class="p">,</span> <span class="p">(</span><span class="n">sm_old</span><span class="o">/</span><span class="p">(</span><span class="n">lp</span><span class="o">*</span><span class="n">fc</span><span class="p">))</span><span class="o">*</span><span class="n">_ep_int</span><span class="p">)</span>
+
+    <span class="n">_cf</span> <span class="o">=</span> <span class="n">c_flux</span><span class="o">*</span><span class="p">((</span><span class="n">fc</span> <span class="o">-</span> <span class="n">sm_old</span><span class="p">)</span><span class="o">/</span><span class="n">fc</span><span class="p">)</span>
+    <span class="n">sm_new</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sm_old</span> <span class="o">+</span> <span class="n">_in</span> <span class="o">-</span> <span class="n">_r</span> <span class="o">+</span> <span class="n">_cf</span> <span class="o">-</span> <span class="n">_ea</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">uz_int_1</span> <span class="o">=</span> <span class="n">uz_old</span> <span class="o">+</span> <span class="n">_r</span> <span class="o">-</span> <span class="n">_cf</span>
+
+    <span class="k">return</span> <span class="n">sm_new</span><span class="p">,</span> <span class="n">uz_int_1</span><span class="p">,</span> <span class="n">qdr</span>
+
+
+<span class="k">def</span> <span class="nf">_response</span><span class="p">(</span><span class="n">tfac</span><span class="p">,</span> <span class="n">perc</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">k1</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">lz_old</span><span class="p">,</span> <span class="n">uz_int_1</span><span class="p">,</span> <span class="n">qdr</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ========</span>
+<span class="sd">    Response</span>
+<span class="sd">    ========</span>
+<span class="sd">    The response routine of the HBV-96 model.</span>
+<span class="sd">    </span>
+<span class="sd">    The response routine is in charge of transforming the current values of </span>
+<span class="sd">    upper and lower zone into discharge. This routine also controls the </span>
+<span class="sd">    recharge of the lower zone tank (baseflow). The transformation of units </span>
+<span class="sd">    also occurs in this point.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tfac : float</span>
+<span class="sd">        Number of hours in the time step</span>
+<span class="sd">    perc : float</span>
+<span class="sd">        Percolation value [mm\hr]</span>
+<span class="sd">    alpha : float</span>
+<span class="sd">        Response box parameter</span>
+<span class="sd">    k : float</span>
+<span class="sd">        Upper zone recession coefficient</span>
+<span class="sd">    k1 : float </span>
+<span class="sd">        Lower zone recession coefficient</span>
+<span class="sd">    area : float</span>
+<span class="sd">        Catchment area [Km2]</span>
+<span class="sd">    lz_old : float </span>
+<span class="sd">        Previous lower zone value [mm]</span>
+<span class="sd">    uz_int_1 : float </span>
+<span class="sd">        Previous upper zone value before percolation [mm]</span>
+<span class="sd">    qdr : float</span>
+<span class="sd">        Direct runoff [mm]</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>    
+    <span class="n">lz_int_1</span> <span class="o">=</span> <span class="n">lz_old</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">perc</span><span class="p">,</span> <span class="n">uz_int_1</span><span class="p">])</span>
+    <span class="n">uz_int_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">uz_int_1</span> <span class="o">-</span> <span class="n">perc</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+
+    <span class="n">_q_0</span> <span class="o">=</span> <span class="n">k</span><span class="o">*</span><span class="p">(</span><span class="n">uz_int_2</span><span class="o">**</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">alpha</span><span class="p">))</span>
+    <span class="n">_q_1</span> <span class="o">=</span> <span class="n">k1</span><span class="o">*</span><span class="n">lz_int_1</span>
+
+    <span class="n">uz_new</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">uz_int_2</span> <span class="o">-</span> <span class="p">(</span><span class="n">_q_0</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">lz_new</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">lz_int_1</span> <span class="o">-</span> <span class="p">(</span><span class="n">_q_1</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">q_new</span> <span class="o">=</span> <span class="n">area</span><span class="o">*</span><span class="p">(</span><span class="n">_q_0</span> <span class="o">+</span> <span class="n">_q_1</span> <span class="o">+</span> <span class="n">qdr</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mf">3.6</span><span class="o">*</span><span class="n">tfac</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">q_new</span><span class="p">,</span> <span class="n">uz_new</span><span class="p">,</span> <span class="n">lz_new</span>
+
+
+<span class="k">def</span> <span class="nf">_routing</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    To be implemented</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span>
+
+
+<span class="k">def</span> <span class="nf">_step_run</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">St</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ========</span>
+<span class="sd">    Step run</span>
+<span class="sd">    ========</span>
+<span class="sd">    </span>
+<span class="sd">    Makes the calculation of next step of discharge and states</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    p : array_like [18]</span>
+<span class="sd">        Parameter vector, set up as:</span>
+<span class="sd">        [ltt, utt, ttm, cfmax, fc, ecorr, etf, lp, k, k1, </span>
+<span class="sd">        alpha, beta, cwh, cfr, c_flux, perc, rfcf, sfcf]</span>
+<span class="sd">    p2 : array_like [2]</span>
+<span class="sd">        Problem parameter vector setup as:</span>
+<span class="sd">        [tfac, area]</span>
+<span class="sd">    v : array_like [4]</span>
+<span class="sd">        Input vector setup as:</span>
+<span class="sd">        [prec, temp, evap, llt]</span>
+<span class="sd">    St : array_like [5]</span>
+<span class="sd">        Previous model states setup as:</span>
+<span class="sd">        [sp, sm, uz, lz, wc]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    q_new : float</span>
+<span class="sd">        Discharge [m3/s]</span>
+<span class="sd">    St : array_like [5]</span>
+<span class="sd">        Posterior model states</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1">## Parse of parameters from input vector to model</span>
+    <span class="n">ltt</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">utt</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">ttm</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">cfmax</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">fc</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+    <span class="n">e_corr</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+    <span class="n">etf</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span>
+    <span class="n">lp</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+    <span class="n">k1</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">9</span><span class="p">]</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">10</span><span class="p">]</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">11</span><span class="p">]</span>
+    <span class="n">cwh</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">12</span><span class="p">]</span>
+    <span class="n">cfr</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">13</span><span class="p">]</span>
+    <span class="n">c_flux</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">14</span><span class="p">]</span>
+    <span class="n">perc</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">15</span><span class="p">]</span>
+    <span class="n">rfcf</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">16</span><span class="p">]</span>
+    <span class="n">sfcf</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="mi">17</span><span class="p">]</span>
+
+    <span class="c1">## Non optimisable parameters</span>
+    <span class="n">tfac</span> <span class="o">=</span> <span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">area</span> <span class="o">=</span> <span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1">## Parse of Inputs</span>
+    <span class="n">avg_prec</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># Precipitation [mm]</span>
+    <span class="n">temp</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="c1"># Temperature [C]</span>
+    <span class="n">ep</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="c1"># Long terms (monthly) Evapotranspiration [mm]</span>
+    <span class="n">tm</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="c1">#Long term (monthly) average temperature [C]</span>
+
+    <span class="c1">## Parse of states</span>
+    <span class="n">sp_old</span> <span class="o">=</span> <span class="n">St</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">sm_old</span> <span class="o">=</span> <span class="n">St</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">uz_old</span> <span class="o">=</span> <span class="n">St</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">lz_old</span> <span class="o">=</span> <span class="n">St</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">wc_old</span> <span class="o">=</span> <span class="n">St</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+
+    <span class="n">rf</span><span class="p">,</span> <span class="n">sf</span> <span class="o">=</span> <span class="n">_precipitation</span><span class="p">(</span><span class="n">temp</span><span class="p">,</span> <span class="n">ltt</span><span class="p">,</span> <span class="n">utt</span><span class="p">,</span> <span class="n">avg_prec</span><span class="p">,</span> <span class="n">rfcf</span><span class="p">,</span> <span class="n">sfcf</span><span class="p">,</span> <span class="n">tfac</span><span class="p">)</span>
+    <span class="n">inf</span><span class="p">,</span> <span class="n">wc_new</span><span class="p">,</span> <span class="n">sp_new</span> <span class="o">=</span> <span class="n">_snow</span><span class="p">(</span><span class="n">cfmax</span><span class="p">,</span> <span class="n">tfac</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">ttm</span><span class="p">,</span> <span class="n">cfr</span><span class="p">,</span> <span class="n">cwh</span><span class="p">,</span> <span class="n">rf</span><span class="p">,</span> <span class="n">sf</span><span class="p">,</span>
+                               <span class="n">wc_old</span><span class="p">,</span> <span class="n">sp_old</span><span class="p">)</span>
+    <span class="n">sm_new</span><span class="p">,</span> <span class="n">uz_int_1</span><span class="p">,</span> <span class="n">qdr</span> <span class="o">=</span> <span class="n">_soil</span><span class="p">(</span><span class="n">fc</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">etf</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">tm</span><span class="p">,</span> <span class="n">e_corr</span><span class="p">,</span> <span class="n">lp</span><span class="p">,</span> <span class="n">tfac</span><span class="p">,</span> <span class="n">c_flux</span><span class="p">,</span>
+                            <span class="n">inf</span><span class="p">,</span> <span class="n">ep</span><span class="p">,</span> <span class="n">sm_old</span><span class="p">,</span> <span class="n">uz_old</span><span class="p">)</span>
+    <span class="n">q_new</span><span class="p">,</span> <span class="n">uz_new</span><span class="p">,</span> <span class="n">lz_new</span> <span class="o">=</span> <span class="n">_response</span><span class="p">(</span><span class="n">tfac</span><span class="p">,</span> <span class="n">perc</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">k1</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">lz_old</span><span class="p">,</span>
+                                    <span class="n">uz_int_1</span><span class="p">,</span> <span class="n">qdr</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">q_new</span><span class="p">,</span> <span class="p">[</span><span class="n">sp_new</span><span class="p">,</span> <span class="n">sm_new</span><span class="p">,</span> <span class="n">uz_new</span><span class="p">,</span> <span class="n">lz_new</span><span class="p">,</span> <span class="n">wc_new</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="simulate"><a class="viewcode-back" href="../lumped-hydrological.html#HBV96.simulate">[docs]</a><span class="k">def</span> <span class="nf">simulate</span><span class="p">(</span><span class="n">avg_prec</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">et</span><span class="p">,</span> <span class="n">par</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">init_st</span><span class="o">=</span><span class="n">DEF_ST</span><span class="p">,</span> <span class="n">ll_temp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+             <span class="n">q_0</span><span class="o">=</span><span class="n">DEF_q0</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ========</span>
+<span class="sd">    Simulate</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    Run the HBV model for the number of steps (n) in precipitation. The</span>
+<span class="sd">    resluts are (n+1) simulation of discharge as the model calculates step n+1</span>
+
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    avg_prec : array_like [n]</span>
+<span class="sd">        Average precipitation [mm/h]</span>
+<span class="sd">    temp : array_like [n]</span>
+<span class="sd">        Average temperature [C]</span>
+<span class="sd">    et : array_like [n]</span>
+<span class="sd">        Potential Evapotranspiration [mm/h]</span>
+<span class="sd">    par : array_like [18]</span>
+<span class="sd">        Parameter vector, set up as:</span>
+<span class="sd">        [ltt, utt, ttm, cfmax, fc, ecorr, etf, lp, k, k1, </span>
+<span class="sd">        alpha, beta, cwh, cfr, c_flux, perc, rfcf, sfcf]</span>
+<span class="sd">    p2 : array_like [2]</span>
+<span class="sd">        Problem parameter vector setup as:</span>
+<span class="sd">        [tfac, area]</span>
+<span class="sd">    init_st : array_like [5], optional</span>
+<span class="sd">        Initial model states, [sp, sm, uz, lz, wc]. If unspecified, </span>
+<span class="sd">        [0.0, 30.0, 30.0, 30.0, 0.0] mm</span>
+<span class="sd">    ll_temp : array_like [n], optional</span>
+<span class="sd">        Long term average temptearature. If unspecified, calculated from temp.</span>
+<span class="sd">    q_0 : float, optional</span>
+<span class="sd">        Initial discharge value. If unspecified set to 10.0</span>
+<span class="sd">    </span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    q_sim : array_like [n]</span>
+<span class="sd">        Discharge for the n time steps of the precipitation vector [m3/s]</span>
+<span class="sd">    st : array_like [n, 5]</span>
+<span class="sd">        Model states for the complete time series [mm]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+
+    <span class="n">st</span> <span class="o">=</span> <span class="p">[</span><span class="n">init_st</span><span class="p">,</span> <span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">ll_temp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ll_temp</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">temp</span><span class="p">),</span> <span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">avg_prec</span><span class="p">)</span>
+
+    <span class="n">q_sim</span> <span class="o">=</span> <span class="p">[</span><span class="n">q_0</span><span class="p">,</span> <span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">xrange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">avg_prec</span><span class="p">)):</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="p">[</span><span class="n">avg_prec</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">temp</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">et</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">ll_temp</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+        <span class="n">q_out</span><span class="p">,</span> <span class="n">st_out</span> <span class="o">=</span> <span class="n">_step_run</span><span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">st</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">q_sim</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_out</span><span class="p">)</span>
+        <span class="n">st</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">st_out</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">q_sim</span><span class="p">,</span> <span class="n">st</span></div>
+
+
+<span class="k">def</span> <span class="nf">_nse</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">q_sim</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ===</span>
+<span class="sd">    NSE</span>
+<span class="sd">    ===</span>
+<span class="sd">    </span>
+<span class="sd">    Nash-Sutcliffe efficiency. Metric for the estimation of performance of the </span>
+<span class="sd">    hydrological model</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    q_rec : array_like [n]</span>
+<span class="sd">        Measured discharge [m3/s]</span>
+<span class="sd">    q_sim : array_like [n] </span>
+<span class="sd">        Simulated discharge [m3/s]</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f : float</span>
+<span class="sd">        NSE value</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">q_sim</span><span class="p">))</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">q_rec</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">any</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nansum</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">nansum</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+
+<span class="k">def</span> <span class="nf">_rmse</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span><span class="n">q_sim</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    ====</span>
+<span class="sd">    RMSE</span>
+<span class="sd">    ====</span>
+<span class="sd">    </span>
+<span class="sd">    Root Mean Squared Error. Metric for the estimation of performance of the </span>
+<span class="sd">    hydrological model.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    q_rec : array_like [n]</span>
+<span class="sd">        Measured discharge [m3/s]</span>
+<span class="sd">    q_sim : array_like [n] </span>
+<span class="sd">        Simulated discharge [m3/s]</span>
+<span class="sd">        </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f : float</span>
+<span class="sd">        RMSE value</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">erro</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">q_rec</span><span class="p">,</span><span class="n">q_sim</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">erro</span><span class="o">.</span><span class="n">any</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">erro</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">f</span>
+
+<div class="viewcode-block" id="calibrate"><a class="viewcode-back" href="../lumped-hydrological.html#HBV96.calibrate">[docs]</a><span class="k">def</span> <span class="nf">calibrate</span><span class="p">(</span><span class="n">flow</span><span class="p">,</span> <span class="n">avg_prec</span><span class="p">,</span> <span class="n">temp</span><span class="p">,</span> <span class="n">et</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">init_st</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ll_temp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">x_0</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_lb</span><span class="o">=</span><span class="n">P_LB</span><span class="p">,</span> <span class="n">x_ub</span><span class="o">=</span><span class="n">P_UB</span><span class="p">,</span> <span class="n">obj_fun</span><span class="o">=</span><span class="n">_rmse</span><span class="p">,</span> <span class="n">wu</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+              <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">minimise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fun_nam</span><span class="o">=</span><span class="s1">&#39;RMSE&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    =========</span>
+<span class="sd">    Calibrate</span>
+<span class="sd">    =========</span>
+
+<span class="sd">    Run the calibration of the HBV-96. The calibration is used to estimate the</span>
+<span class="sd">    optimal set of parameters that minimises the difference between </span>
+<span class="sd">    observations and modelled discharge.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    </span>
+<span class="sd">    flow : array_like [n]</span>
+<span class="sd">        Measurements of discharge [m3/s]</span>
+<span class="sd">    avg_prec : array_like [n]</span>
+<span class="sd">        Average precipitation [mm/h]</span>
+<span class="sd">    temp : array_like [n]</span>
+<span class="sd">        Average temperature [C]</span>
+<span class="sd">    et : array_like [n]</span>
+<span class="sd">        Potential Evapotranspiration [mm/h] </span>
+<span class="sd">    p2 : array_like [2]</span>
+<span class="sd">        Problem parameter vector setup as:</span>
+<span class="sd">        [tfac, area]</span>
+<span class="sd">    init_st : array_like [5], optional</span>
+<span class="sd">        Initial model states, [sp, sm, uz, lz, wc]. If unspecified, </span>
+<span class="sd">        [0.0, 30.0, 30.0, 30.0, 0.0] mm</span>
+<span class="sd">    ll_temp : array_like [n], optional</span>
+<span class="sd">        Long term average temptearature. If unspecified, calculated from temp.</span>
+<span class="sd">    x_0 : array_like [18], optional</span>
+<span class="sd">        First guess of the parameter vector. If unspecified, a random value</span>
+<span class="sd">        will be sampled between the boundaries of the </span>
+<span class="sd">    x_lb : array_like [18], optional</span>
+<span class="sd">        Lower boundary of the parameter vector. If unspecified, a random value</span>
+<span class="sd">        will be sampled between the boundaries of the </span>
+<span class="sd">    x_ub : array_like [18], optional</span>
+<span class="sd">        First guess of the parameter vector. If unspecified, a random value</span>
+<span class="sd">        will be sampled between the boundaries of the</span>
+<span class="sd">    obj_fun : function, optional</span>
+<span class="sd">        Function that takes 2 parameters, recorded and simulated discharge. If</span>
+<span class="sd">        unspecified, RMSE is used.</span>
+<span class="sd">    wu : int, optional</span>
+<span class="sd">        Warming up period. This accounts for the number of steps that the model</span>
+<span class="sd">        is run before calculating the performance function.</span>
+<span class="sd">    verbose : bool, optional</span>
+<span class="sd">        If True, displays the result of each model evaluation when performing</span>
+<span class="sd">        the calibration of the hydrological model.</span>
+<span class="sd">    tol : float, optional</span>
+<span class="sd">        Determines the tolerance of the solutions in the optimisaiton process.</span>
+<span class="sd">    minimise : bool, optional</span>
+<span class="sd">        If True, the optimisation corresponds to the minimisation of the </span>
+<span class="sd">        objective function. If False, the optimial of the objective function is</span>
+<span class="sd">        maximised.</span>
+<span class="sd">    fun_nam : str, optional</span>
+<span class="sd">        Name of the objective function used in calibration. If unspecified, is</span>
+<span class="sd">        &#39;RMSE&#39;</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    params : array_like [18]</span>
+<span class="sd">        Optimal parameter set</span>
+<span class="sd">    </span>
+<span class="sd">    performance : float</span>
+<span class="sd">        Optimal value of the objective function</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_cal_fun</span><span class="p">(</span><span class="n">par</span><span class="p">):</span>
+        <span class="n">q_sim</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">avg_prec</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">temp</span><span class="p">,</span> <span class="n">et</span><span class="p">,</span> <span class="n">par</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">init_st</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                         <span class="n">ll_temp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">q_0</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">minimise</span><span class="p">:</span>
+            <span class="n">perf</span> <span class="o">=</span> <span class="n">obj_fun</span><span class="p">(</span><span class="n">flow</span><span class="p">[</span><span class="n">wu</span><span class="p">:],</span> <span class="n">q_sim</span><span class="p">[</span><span class="n">wu</span><span class="p">:])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">perf</span> <span class="o">=</span> <span class="o">-</span><span class="n">obj_fun</span><span class="p">(</span><span class="n">flow</span><span class="p">[</span><span class="n">wu</span><span class="p">:],</span> <span class="n">q_sim</span><span class="p">[</span><span class="n">wu</span><span class="p">:])</span>
+
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">: </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fun_nam</span><span class="p">,</span> <span class="n">perf</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">perf</span>
+
+    <span class="c1"># Boundaries</span>
+    <span class="n">x_b</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="n">x_lb</span><span class="p">,</span> <span class="n">x_ub</span><span class="p">)</span>
+
+    <span class="c1"># initial guess</span>
+    <span class="k">if</span> <span class="n">x_0</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Randomly generated</span>
+        <span class="n">x_0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">x_lb</span><span class="p">,</span> <span class="n">x_ub</span><span class="p">)</span>
+
+    <span class="c1"># Model optimisation</span>
+    <span class="n">par_cal</span> <span class="o">=</span> <span class="n">opt</span><span class="o">.</span><span class="n">minimize</span><span class="p">(</span><span class="n">_cal_fun</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;L-BFGS-B&#39;</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">x_b</span><span class="p">,</span>
+                           <span class="n">tol</span><span class="o">=</span><span class="n">tol</span><span class="p">)</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">par_cal</span><span class="o">.</span><span class="n">x</span>
+    <span class="n">performance</span> <span class="o">=</span> <span class="n">par_cal</span><span class="o">.</span><span class="n">fun</span>
+    <span class="k">return</span> <span class="n">params</span><span class="p">,</span> <span class="n">performance</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,428 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>lumped-hydrological package &#8212; lumped-hydrological  documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to lumped-hydrological’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="lumped-hydrological-package">
+<h1>lumped-hydrological package<a class="headerlink" href="#lumped-hydrological-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-HBV96">
+<span id="hbv96-module"></span><h2>HBV96 module<a class="headerlink" href="#module-HBV96" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="hbv-96">
+<h3>HBV-96<a class="headerlink" href="#hbv-96" title="Permalink to this headline">¶</a></h3>
+<p>Lumped hydrological model.</p>
+<p>This is the HBV-96 implementation by Juan Chacon at IHE-Delft, NL. This code
+implements the HBV-96 version, as described in Lindstrom et al (1997)
+<a class="reference external" href="https://doi.org/10.1016/S0022-1694(97)00041-3">https://doi.org/10.1016/S0022-1694(97)00041-3</a></p>
+<p>&#64;author: Juan Carlos Chacon-Hurtado (<a class="reference external" href="mailto:jc&#46;chaconh&#37;&#52;&#48;gmail&#46;com">jc<span>&#46;</span>chaconh<span>&#64;</span>gmail<span>&#46;</span>com</a>)</p>
+<div class="section" id="version">
+<h4>Version<a class="headerlink" href="#version" title="Permalink to this headline">¶</a></h4>
+<p>03-05-2017 - V_0.0 - First implementation</p>
+<dl class="function">
+<dt id="HBV96.calibrate">
+<code class="descclassname">HBV96.</code><code class="descname">calibrate</code><span class="sig-paren">(</span><em>flow, avg_prec, temp, et, p2, init_st=None, ll_temp=None, x_0=None, x_lb=[-1.5, 0.001, 0.001, 0.04, 50.0, 0.6, 0.001, 0.2, 0.00042, 4.2e-06, 0.001, 1.0, 0.001, 0.01, 0.0, 0.001, 0.6, 0.4], x_ub=[2.5, 3.0, 2.0, 0.4, 500.0, 1.4, 5.0, 0.5, 0.0167, 0.00062, 1.0, 6.0, 0.1, 1.0, 0.08, 0.125, 1.4, 1.4], obj_fun=&lt;function _rmse&gt;, wu=10, verbose=False, tol=0.001, minimise=True, fun_nam='RMSE'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/HBV96.html#calibrate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#HBV96.calibrate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the calibration of the HBV-96. The calibration is used to estimate the
+optimal set of parameters that minimises the difference between
+observations and modelled discharge.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>flow</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Measurements of discharge [m3/s]</li>
+<li><strong>avg_prec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average precipitation [mm/h]</li>
+<li><strong>temp</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average temperature [C]</li>
+<li><strong>et</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Potential Evapotranspiration [mm/h]</li>
+<li><strong>p2</strong> (<em>array_like</em><em> [</em><em>2</em><em>]</em><em></em>) &#8211; Problem parameter vector setup as:
+[tfac, area]</li>
+<li><strong>init_st</strong> (<em>array_like</em><em> [</em><em>5</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Initial model states, [sp, sm, uz, lz, wc]. If unspecified,
+[0.0, 30.0, 30.0, 30.0, 0.0] mm</li>
+<li><strong>ll_temp</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Long term average temptearature. If unspecified, calculated from temp.</li>
+<li><strong>x_0</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; First guess of the parameter vector. If unspecified, a random value
+will be sampled between the boundaries of the</li>
+<li><strong>x_lb</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Lower boundary of the parameter vector. If unspecified, a random value
+will be sampled between the boundaries of the</li>
+<li><strong>x_ub</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; First guess of the parameter vector. If unspecified, a random value
+will be sampled between the boundaries of the</li>
+<li><strong>obj_fun</strong> (<em>function</em><em>, </em><em>optional</em>) &#8211; Function that takes 2 parameters, recorded and simulated discharge. If
+unspecified, RMSE is used.</li>
+<li><strong>wu</strong> (<em>int</em><em>, </em><em>optional</em>) &#8211; Warming up period. This accounts for the number of steps that the model
+is run before calculating the performance function.</li>
+<li><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) &#8211; If True, displays the result of each model evaluation when performing
+the calibration of the hydrological model.</li>
+<li><strong>tol</strong> (<em>float</em><em>, </em><em>optional</em>) &#8211; Determines the tolerance of the solutions in the optimisaiton process.</li>
+<li><strong>minimise</strong> (<em>bool</em><em>, </em><em>optional</em>) &#8211; If True, the optimisation corresponds to the minimisation of the
+objective function. If False, the optimial of the objective function is
+maximised.</li>
+<li><strong>fun_nam</strong> (<em>str</em><em>, </em><em>optional</em>) &#8211; Name of the objective function used in calibration. If unspecified, is
+&#8216;RMSE&#8217;</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><strong>params</strong> (<em>array_like [18]</em>) &#8211; Optimal parameter set</li>
+<li><strong>performance</strong> (<em>float</em>) &#8211; Optimal value of the objective function</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="HBV96.simulate">
+<code class="descclassname">HBV96.</code><code class="descname">simulate</code><span class="sig-paren">(</span><em>avg_prec, temp, et, par, p2, init_st=[0.0, 30.0, 30.0, 30.0, 0.0], ll_temp=None, q_0=10.0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/HBV96.html#simulate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#HBV96.simulate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the HBV model for the number of steps (n) in precipitation. The
+resluts are (n+1) simulation of discharge as the model calculates step n+1</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>avg_prec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average precipitation [mm/h]</li>
+<li><strong>temp</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average temperature [C]</li>
+<li><strong>et</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Potential Evapotranspiration [mm/h]</li>
+<li><strong>par</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em>) &#8211; Parameter vector, set up as:
+[ltt, utt, ttm, cfmax, fc, ecorr, etf, lp, k, k1,
+alpha, beta, cwh, cfr, c_flux, perc, rfcf, sfcf]</li>
+<li><strong>p2</strong> (<em>array_like</em><em> [</em><em>2</em><em>]</em><em></em>) &#8211; Problem parameter vector setup as:
+[tfac, area]</li>
+<li><strong>init_st</strong> (<em>array_like</em><em> [</em><em>5</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Initial model states, [sp, sm, uz, lz, wc]. If unspecified,
+[0.0, 30.0, 30.0, 30.0, 0.0] mm</li>
+<li><strong>ll_temp</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Long term average temptearature. If unspecified, calculated from temp.</li>
+<li><strong>q_0</strong> (<em>float</em><em>, </em><em>optional</em>) &#8211; Initial discharge value. If unspecified set to 10.0</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><strong>q_sim</strong> (<em>array_like [n]</em>) &#8211; Discharge for the n time steps of the precipitation vector [m3/s]</li>
+<li><strong>st</strong> (<em>array_like [n, 5]</em>) &#8211; Model states for the complete time series [mm]</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+</div>
+<div class="section" id="module-linear_reservoir">
+<span id="linear-reservoir-module"></span><h2>linear_reservoir module<a class="headerlink" href="#module-linear_reservoir" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="linear-tank">
+<h3>Linear Tank<a class="headerlink" href="#linear-tank" title="Permalink to this headline">¶</a></h3>
+<p>Lumped hydrological model.</p>
+<p>This is the Sugawara (TANK) hydrological model implementation by Juan Chacon at
+IHE-Delft, NL. This code implements a two tank the version with linear response</p>
+<p>&#64;author: Juan Carlos Chacon-Hurtado (<a class="reference external" href="mailto:jc&#46;chaconh&#37;&#52;&#48;gmail&#46;com">jc<span>&#46;</span>chaconh<span>&#64;</span>gmail<span>&#46;</span>com</a>)</p>
+<div class="section" id="id1">
+<h4>Version<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h4>
+<p>03-05-2017 - V_0.0 - First implementation</p>
+<dl class="function">
+<dt id="linear_reservoir.calibrate">
+<code class="descclassname">linear_reservoir.</code><code class="descname">calibrate</code><span class="sig-paren">(</span><em>prec, evap, extra_param, q_rec, x_0=None, x_lb=[0.0001, 0.7], x_ub=[1.0, 1.7], obj_fun=&lt;function _rmse&gt;, wu=10, minimise=True, verbose=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/linear_reservoir.html#calibrate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#linear_reservoir.calibrate" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes the calibration of the Sugawara hydrological model.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>prec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average precipitation [mm/h]</li>
+<li><strong>evap</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Potential Evapotranspiration [mm/h]</li>
+<li><strong>extra_param</strong> (<em>array_like</em><em> [</em><em>2</em><em>]</em><em></em>) &#8211; Problem parameter vector setup as:
+DT: Number of hours in the time step
+AREA: Catchment area [km²]</li>
+<li><strong>q_rec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Measurements of discharge [m3/s]</li>
+<li><strong>x_0</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; First guess of the parameter vector. If unspecified, a random value
+will be sampled between the boundaries of the parameter set</li>
+<li><strong>x_lb</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Lower boundary of the parameter vector.</li>
+<li><strong>x_ub</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; First guess of the parameter vector.</li>
+<li><strong>obj_fun</strong> (<em>function</em><em>, </em><em>optional</em>) &#8211; Function that takes 2 parameters, recorded and simulated discharge. If
+unspecified, RMSE is used.</li>
+<li><strong>wu</strong> (<em>int</em><em>, </em><em>optional</em>) &#8211; Warming up period. This accounts for the number of steps that the model
+is run before calculating the performance function.</li>
+<li><strong>minimise</strong> (<em>bool</em><em>, </em><em>optional</em>) &#8211; If True, the optimisation corresponds to the minimisation of the
+objective function. If False, the optimial of the objective function is
+maximised.</li>
+<li><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) &#8211; If True, displays the result of each model evaluation when performing
+the calibration of the hydrological model.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><strong>param</strong> (<em>array_like [6]</em>) &#8211; Optimal parameter set
+k1: Upper tank upper discharge coefficient
+k2: Upper tank lower discharge coefficient
+k3: Percolation to lower tank coefficient
+k4: Lower tank discharge coefficient
+d1: Upper tank upper discharge position
+d2: Upper tank lower discharge position</li>
+<li><strong>performance</strong> (<em>float</em>) &#8211; Optimal value of the objective function</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="linear_reservoir.simulate">
+<code class="descclassname">linear_reservoir.</code><code class="descname">simulate</code><span class="sig-paren">(</span><em>avg_prec</em>, <em>evap</em>, <em>param</em>, <em>extra_param</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/linear_reservoir.html#simulate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#linear_reservoir.simulate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the HBV model for the number of steps (n) in precipitation. The
+resluts are (n+1) simulation of discharge as the model calculates step n+1</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>avg_prec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average precipitation [mm/h]</li>
+<li><strong>evap</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Potential Evapotranspiration [mm/h]</li>
+<li><strong>param</strong> (<em>array_like</em><em> [</em><em>1</em><em>]</em><em></em>) &#8211; Parameter vector, set up as:
+Rainfall correction factor
+Recession coefficient K</li>
+<li><strong>extra_param</strong> (<em>array_like</em><em> [</em><em>2</em><em>]</em><em></em>) &#8211; Problem parameter vector setup as:
+[tfac, area]</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>q_sim</strong> &#8211; Discharge for the n time steps of the precipitation vector [m3/s]</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">array_like [n]</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+</div>
+<div class="section" id="module-sugawara">
+<span id="sugawara-module"></span><h2>sugawara module<a class="headerlink" href="#module-sugawara" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="sugawara">
+<h3>Sugawara<a class="headerlink" href="#sugawara" title="Permalink to this headline">¶</a></h3>
+<p>Lumped hydrological model.</p>
+<p>This is the Sugawara (TANK) hydrological model implementation by Juan Chacon at
+IHE-Delft, NL. This code implements a two tank the version with linear response</p>
+<p>&#64;author: Juan Carlos Chacon-Hurtado (<a class="reference external" href="mailto:jc&#46;chaconh&#37;&#52;&#48;gmail&#46;com">jc<span>&#46;</span>chaconh<span>&#64;</span>gmail<span>&#46;</span>com</a>)</p>
+<div class="section" id="id2">
+<h4>Version<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h4>
+<p>03-05-2017 - V_0.0 - First implementation</p>
+<dl class="function">
+<dt id="sugawara.calibrate">
+<code class="descclassname">sugawara.</code><code class="descname">calibrate</code><span class="sig-paren">(</span><em>prec, evap, extra_param, q_rec, x_0=None, x_lb=[0.0, 0.0, 0.0, 0.0, 1.0, 0.1, 0.8], x_ub=[1.1, 1.1, 1.5, 1.1, 15.0, 1.0, 1.6], obj_fun=&lt;function _rmse&gt;, wu=10, minimise=True, verbose=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sugawara.html#calibrate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sugawara.calibrate" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes the calibration of the Sugawara hydrological model.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>prec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average precipitation [mm/h]</li>
+<li><strong>evap</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Potential Evapotranspiration [mm/h]</li>
+<li><strong>extra_param</strong> (<em>array_like</em><em> [</em><em>2</em><em>]</em><em></em>) &#8211; Problem parameter vector setup as:
+DT: Number of hours in the time step
+AREA: Catchment area [km²]</li>
+<li><strong>q_rec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Measurements of discharge [m3/s]</li>
+<li><strong>x_0</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; First guess of the parameter vector. If unspecified, a random value
+will be sampled between the boundaries of the parameter set</li>
+<li><strong>x_lb</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; Lower boundary of the parameter vector.</li>
+<li><strong>x_ub</strong> (<em>array_like</em><em> [</em><em>18</em><em>]</em><em></em><em>, </em><em>optional</em>) &#8211; First guess of the parameter vector.</li>
+<li><strong>obj_fun</strong> (<em>function</em><em>, </em><em>optional</em>) &#8211; Function that takes 2 parameters, recorded and simulated discharge. If
+unspecified, RMSE is used.</li>
+<li><strong>wu</strong> (<em>int</em><em>, </em><em>optional</em>) &#8211; Warming up period. This accounts for the number of steps that the model
+is run before calculating the performance function.</li>
+<li><strong>minimise</strong> (<em>bool</em><em>, </em><em>optional</em>) &#8211; If True, the optimisation corresponds to the minimisation of the
+objective function. If False, the optimial of the objective function is
+maximised.</li>
+<li><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) &#8211; If True, displays the result of each model evaluation when performing
+the calibration of the hydrological model.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><strong>param</strong> (<em>array_like [6]</em>) &#8211; Optimal parameter set
+k1: Upper tank upper discharge coefficient
+k2: Upper tank lower discharge coefficient
+k3: Percolation to lower tank coefficient
+k4: Lower tank discharge coefficient
+d1: Upper tank upper discharge position
+d2: Upper tank lower discharge position</li>
+<li><strong>performance</strong> (<em>float</em>) &#8211; Optimal value of the objective function</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="sugawara.simulate">
+<code class="descclassname">sugawara.</code><code class="descname">simulate</code><span class="sig-paren">(</span><em>prec</em>, <em>evap</em>, <em>param</em>, <em>extra_param</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/sugawara.html#simulate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sugawara.simulate" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes the simulation of a complete time seties using the
+Sugawara model.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>prec</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Average precipitation [mm/h]</li>
+<li><strong>evap</strong> (<em>array_like</em><em> [</em><em>n</em><em>]</em><em></em>) &#8211; Potential Evapotranspiration [mm/h]</li>
+<li><strong>param</strong> (<em>array_like</em><em> [</em><em>6</em><em>]</em><em></em>) &#8211; Model parameters as:
+k1: Upper tank upper discharge coefficient
+k2: Upper tank lower discharge coefficient
+k3: Percolation to lower tank coefficient
+k4: Lower tank discharge coefficient
+d1: Upper tank upper discharge position
+d2: Upper tank lower discharge position</li>
+<li><strong>extra_param</strong> (<em>array_like</em><em> [</em><em>2</em><em>]</em><em></em>) &#8211; Problem parameter vector setup as:
+DT: Number of hours in the time step
+AREA: Catchment area [km²]</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><strong>q</strong> (<em>array_like [n]</em>) &#8211; Discharge [m3/s]</li>
+<li><strong>st</strong> (<em>array_like [n, 2]</em>) &#8211; Posterior model states</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+</div>
+<div class="section" id="module-contents">
+<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">lumped-hydrological package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-HBV96">HBV96 module</a><ul>
+<li><a class="reference internal" href="#hbv-96">HBV-96</a><ul>
+<li><a class="reference internal" href="#version">Version</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-linear_reservoir">linear_reservoir module</a><ul>
+<li><a class="reference internal" href="#linear-tank">Linear Tank</a><ul>
+<li><a class="reference internal" href="#id1">Version</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-sugawara">sugawara module</a><ul>
+<li><a class="reference internal" href="#sugawara">Sugawara</a><ul>
+<li><a class="reference internal" href="#id2">Version</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-contents">Module contents</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to lumped-hydrological&#8217;s documentation!</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/lumped-hydrological.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/lumped-hydrological.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
